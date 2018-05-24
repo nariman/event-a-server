@@ -1,0 +1,7 @@
+asyncpg
+asyncpgsa
+passlib[argon2,bcrypt]
+pendulum
+python-jose
+sanic
+sqlalchemy

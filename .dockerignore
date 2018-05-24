@@ -1,0 +1,2 @@
+# There is no need for a Git repository in a Docker image.
+.git
