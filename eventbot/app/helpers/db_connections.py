@@ -28,12 +28,12 @@ def get_connection():
     """Returns a database connection.
 
     Don't forget to close (return) the acquired connection."""
-    return await get_pool().acquire()
+    return await (get_pool().acquire())
 
 
 def close_connection(connection: asyncpg.Connection):
     """Closes an acquired connection."""
-    await get_pool().release(connection)
+    await (get_pool().release(connection))
 
 
 def provide_connection(key="connection", force_replace=False):

@@ -8,10 +8,11 @@ import pendulum
 import sqlalchemy as sa
 
 from . import metadata
+from eventbot.lib.sqlalchemy.base import Table
 from eventbot.lib.sqlalchemy.types import DateTime
 
 
-t = table = sa.Table(
+t = table = Table(
     "tags",
     metadata,
 
