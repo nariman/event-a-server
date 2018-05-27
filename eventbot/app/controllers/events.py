@@ -3,6 +3,7 @@ Event Bot Server
 """
 
 import asyncpgsa
+import pendulum
 from asyncpg.connection import Connection
 from asyncpg.exceptions import PostgresError
 from sanic import response
@@ -12,6 +13,7 @@ from sqlalchemy.sql.expression import func
 
 from eventbot.app import models
 from eventbot.app import helpers
+from eventbot.app.state import snowflake_generator
 from eventbot.lib import exceptions
 from eventbot.lib import listing
 from eventbot.lib import response_wrapper
@@ -69,4 +71,49 @@ class EventsController(HTTPMethodView):
             raise exceptions.NotFetchedError
 
         events = [models.event.t.parse(row, prefix="events_") for row in rows]
+        for event in events:
+            for _ in ["start_time", "end_time", "created_at"]:
+                event[_] = event[_].isoformat()
+
         return response.json(response_wrapper.ok(events))
+
+    @helpers.db_connections.provide_connection()
+    async def post(self, request, connection):
+        event = request.json
+        id = next(snowflake_generator)
+
+        async with connection.transaction():
+            try:
+                query = models.event.t.insert().values(
+                    id=id,
+                    name=event["name"],
+                    description=event["description"],
+                    start_time=pendulum.parse(event["start_time"]),
+                    end_time=pendulum.parse(event["end_time"]),
+                    created_at=pendulum.now())
+                query, params = asyncpgsa.compile_query(query)
+
+                await connection.execute(query, *params)
+
+                query = (select([models.event.t])
+                    .select_from(models.event.t)
+                    .where(models.event.t.c.id == id)
+                    .apply_labels())
+                query, params = asyncpgsa.compile_query(query)
+
+                try:
+                    row = await connection.fetchrow(query, *params)
+                except PostgresError:
+                    raise exceptions.NotFetchedError
+
+                if not row:
+                    raise exceptions.NotFoundError
+
+                event = models.event.t.parse(row, prefix="events_")
+            except (PostgresError, exceptions.DatabaseError):
+                raise exceptions.NotCreatedError
+
+        for _ in ["start_time", "end_time", "created_at"]:
+            event[_] = event[_].isoformat()
+
+        return response.json(response_wrapper.ok(event), status=201)
