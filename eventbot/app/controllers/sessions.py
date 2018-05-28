@@ -2,6 +2,8 @@
 Event Bot Server
 """
 
+import asyncio
+
 import asyncpgsa
 import pendulum
 from asyncpg.connection import Connection
@@ -70,6 +72,34 @@ class SessionsController(HTTPMethodView):
             for row in rows
         ]
 
+        # Construct sessions map for fetching persons, locations and tags
+        smap = {session["id"]: session for session in sessions}
+        sids = list(smap.keys())
+
+        # Query all persons, locations and tags ids for sessions
+        # TODO: Optimizations
+        for name, field, model in [
+            ("persons", "person_id", models.session_person),
+            ("locations", "location_id", models.session_location),
+            ("tags", "tag_id", models.session_tag)
+        ]:
+            for session in sessions:
+                session[name] = []
+
+            query = (select([model.t])
+                .select_from(model.t)
+                .where(model.t.c.session_id.in_(sids)))  # Probably, hot spot
+
+            query, params = asyncpgsa.compile_query(query)
+            try:
+                rows = await connection.fetch(query, *params)
+            except PostgresError:
+                raise exceptions.NotFetchedError
+
+            rows = [model.t.parse(row) for row in rows]
+            for row in rows:
+                smap[str(row["session_id"])][name].append(str(row[field]))
+
         # Return the list
         return response.json(response_wrapper.ok(sessions))
 
@@ -136,5 +166,9 @@ class SessionsController(HTTPMethodView):
                     models.session.t.parse(row, prefix="sessions_"))
             except (PostgresError, exceptions.DatabaseError):
                 raise exceptions.NotCreatedError
+
+        for session in sessions:
+            for name in ["persons", "locations", "tags"]:
+                session[name] = []
 
         return response.json(response_wrapper.ok(session), status=201)
