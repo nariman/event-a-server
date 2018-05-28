@@ -9,12 +9,10 @@ from asyncpg.exceptions import PostgresError
 from sanic import response
 from sanic.views import HTTPMethodView
 from sqlalchemy.sql import select
-from sqlalchemy.sql.expression import func
 
 from eventbot.app import models
 from eventbot.app import helpers
 from eventbot.lib import exceptions
-from eventbot.lib import listing
 from eventbot.lib import response_wrapper
 
 
@@ -22,6 +20,9 @@ class LocationsController(HTTPMethodView):
 
     @helpers.db_connections.provide_connection()
     async def get(self, request, event_id, connection):
+        """Returns a list of event locations."""
+
+        # Check, is event exists
         try:
             query_event = (select([models.event.t])
                 .select_from(models.event.t)
@@ -43,6 +44,7 @@ class LocationsController(HTTPMethodView):
                 response_wrapper.error("Event not found"),
                 status=404)
 
+        # If event exists, query all locations
         query = (select([models.location.t])
             .select_from(models.location.t)
             .where(models.location.t.c.event_id == event["id"])
@@ -50,28 +52,29 @@ class LocationsController(HTTPMethodView):
             .order_by(models.location.t.c.id.desc())
             .apply_labels())
 
+        # Compile query, execute and parse
         query, params = asyncpgsa.compile_query(query)
-
         try:
             rows = await connection.fetch(query, *params)
         except PostgresError:
             raise exceptions.NotFetchedError
 
         locations = [
-            models.location.t.parse(row, prefix="locations_")
+            models.location.json_format(models.location.t.parse(row, prefix="locations_"))
             for row in rows
         ]
 
-        for location in locations:
-            location["id"] = str(location["id"])
-            location["event_id"] = str(location["event_id"])
-
+        # Return the list
         return response.json(response_wrapper.ok(locations))
 
     @helpers.db_connections.provide_connection()
     async def post(self, request, event_id, connection):
+        """Creates a new event location."""
+
+        # Location form
         location = request.json
 
+        # Check, is event exists
         try:
             query_event = (select([models.event.t])
                 .select_from(models.event.t)
@@ -93,6 +96,8 @@ class LocationsController(HTTPMethodView):
                 response_wrapper.error("Event not found"),
                 status=404)
 
+        # If event exists, create a transaction
+        # We need to 1) save location, 2) fetch location from a database
         async with connection.transaction():
             try:
                 query = (models.location.t
@@ -118,11 +123,9 @@ class LocationsController(HTTPMethodView):
                 if not row:
                     raise exceptions.NotFoundError
 
-                location = models.location.t.parse(row, prefix="locations_")
+                location = models.location.json_format(
+                    models.location.t.parse(row, prefix="locations_"))
             except (PostgresError, exceptions.DatabaseError):
                 raise exceptions.NotCreatedError
-
-        location["id"] = str(location["id"])
-        location["event_id"] = str(location["event_id"])
 
         return response.json(response_wrapper.ok(location), status=201)

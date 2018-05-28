@@ -9,12 +9,10 @@ from asyncpg.exceptions import PostgresError
 from sanic import response
 from sanic.views import HTTPMethodView
 from sqlalchemy.sql import select
-from sqlalchemy.sql.expression import func
 
 from eventbot.app import models
 from eventbot.app import helpers
 from eventbot.lib import exceptions
-from eventbot.lib import listing
 from eventbot.lib import response_wrapper
 
 
@@ -22,6 +20,9 @@ class PersonsController(HTTPMethodView):
 
     @helpers.db_connections.provide_connection()
     async def get(self, request, event_id, connection):
+        """Returns a list of event persons."""
+
+        # Check, is event exists
         try:
             query_event = (select([models.event.t])
                 .select_from(models.event.t)
@@ -43,6 +44,7 @@ class PersonsController(HTTPMethodView):
                 response_wrapper.error("Event not found"),
                 status=404)
 
+        # If event exists, query all persons
         query = (select([models.person.t])
             .select_from(models.person.t)
             .where(models.person.t.c.event_id == event["id"])
@@ -50,28 +52,29 @@ class PersonsController(HTTPMethodView):
             .order_by(models.person.t.c.id.desc())
             .apply_labels())
 
+        # Compile query, execute and parse
         query, params = asyncpgsa.compile_query(query)
-
         try:
             rows = await connection.fetch(query, *params)
         except PostgresError:
             raise exceptions.NotFetchedError
 
         persons = [
-            models.person.t.parse(row, prefix="persons_")
+            models.person.json_format(models.person.t.parse(row, prefix="persons_"))
             for row in rows
         ]
 
-        for person in persons:
-            person["id"] = str(person["id"])
-            person["event_id"] = str(person["event_id"])
-
+        # Return the list
         return response.json(response_wrapper.ok(persons))
 
     @helpers.db_connections.provide_connection()
     async def post(self, request, event_id, connection):
+        """Creates a new event person."""
+
+        # Person form
         person = request.json
 
+        # Check, is event exists
         try:
             query_event = (select([models.event.t])
                 .select_from(models.event.t)
@@ -93,6 +96,8 @@ class PersonsController(HTTPMethodView):
                 response_wrapper.error("Event not found"),
                 status=404)
 
+        # If event exists, create a transaction
+        # We need to 1) save person, 2) fetch person from a database
         async with connection.transaction():
             try:
                 query = (models.person.t
@@ -118,11 +123,9 @@ class PersonsController(HTTPMethodView):
                 if not row:
                     raise exceptions.NotFoundError
 
-                person = models.person.t.parse(row, prefix="persons_")
+                person = models.person.json_format(
+                    models.person.t.parse(row, prefix="persons_"))
             except (PostgresError, exceptions.DatabaseError):
                 raise exceptions.NotCreatedError
-
-        person["id"] = str(person["id"])
-        person["event_id"] = str(person["event_id"])
 
         return response.json(response_wrapper.ok(person), status=201)

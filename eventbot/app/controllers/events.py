@@ -9,7 +9,6 @@ from asyncpg.exceptions import PostgresError
 from sanic import response
 from sanic.views import HTTPMethodView
 from sqlalchemy.sql import select
-from sqlalchemy.sql.expression import func
 
 from eventbot.app import models
 from eventbot.app import helpers
@@ -21,9 +20,13 @@ from eventbot.lib import response_wrapper
 class EventsController(HTTPMethodView):
 
     default_listing = listing.Listing(1, 100, 25)
+    """Limits and default options for events listing."""
 
     @helpers.db_connections.provide_connection()
     async def get(self, request, connection):
+        """Returns a list of events."""
+
+        # Validate listing
         try:
             pivot, limit, direction = \
                 self.default_listing.validate_from_request(request)
@@ -31,10 +34,12 @@ class EventsController(HTTPMethodView):
             return response.json(
                 response_wrapper.error("Listing arguments error"), status=400)
 
+        # Prepare query
         query = (select([models.event.t])
             .select_from(models.event.t)
             .apply_labels())
 
+        # Adjust query according to listing options
         if pivot is not None:
             try:
                 query_pivot = query.where(models.event.t.c.id == pivot)
@@ -67,31 +72,38 @@ class EventsController(HTTPMethodView):
                     .where(models.event.t.c.created_at < pivot["created_at"])
                     .where(models.event.t.c.id > pivot["id"]))
 
+        # Apply sorting and limit
         query = (query
             .order_by(models.event.t.c.start_date.asc())
             .order_by(models.event.t.c.end_date.asc())
             .order_by(models.event.t.c.created_at.asc())
             .order_by(models.event.t.c.id.desc())
             .limit(limit))
-        query, params = asyncpgsa.compile_query(query)
 
+        # Compile query, execute and parse
+        query, params = asyncpgsa.compile_query(query)
         try:
             rows = await connection.fetch(query, *params)
         except PostgresError:
             raise exceptions.NotFetchedError
 
-        events = [models.event.t.parse(row, prefix="events_") for row in rows]
-        for event in events:
-            event["id"] = str(event["id"])
-            for _ in ["start_date", "end_date", "created_at"]:
-                event[_] = event[_].isoformat()
+        events = [
+            models.event.json_format(models.event.t.parse(row, prefix="events_"))
+            for row in rows
+        ]
 
+        # Return the list
         return response.json(response_wrapper.ok(events))
 
     @helpers.db_connections.provide_connection()
     async def post(self, request, connection):
+        """Creates a new event."""
+
+        # Event form
         event = request.json
 
+        # Create a transaction
+        # We need to 1) save event, 2) fetch event from a database
         async with connection.transaction():
             try:
                 query = (models.event.t
@@ -119,12 +131,9 @@ class EventsController(HTTPMethodView):
                 if not row:
                     raise exceptions.NotFoundError
 
-                event = models.event.t.parse(row, prefix="events_")
+                event = models.event.json_format(
+                    models.event.t.parse(row, prefix="events_"))
             except (PostgresError, exceptions.DatabaseError):
                 raise exceptions.NotCreatedError
-
-        event["id"] = str(event["id"])
-        for _ in ["start_date", "end_date", "created_at"]:
-            event[_] = event[_].isoformat()
 
         return response.json(response_wrapper.ok(event), status=201)

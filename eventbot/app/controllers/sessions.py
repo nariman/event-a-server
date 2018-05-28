@@ -9,19 +9,24 @@ from asyncpg.exceptions import PostgresError
 from sanic import response
 from sanic.views import HTTPMethodView
 from sqlalchemy.sql import select
-from sqlalchemy.sql.expression import func
 
 from eventbot.app import models
 from eventbot.app import helpers
 from eventbot.lib import exceptions
-from eventbot.lib import listing
 from eventbot.lib import response_wrapper
 
 
 class SessionsController(HTTPMethodView):
+    """Event schedule information controller."""
 
     @helpers.db_connections.provide_connection()
     async def get(self, request, event_id, connection):
+        """Returns a list of event sessions aka schedule.
+
+        This endpoint returns complete list, w/o support of listing.
+        """
+
+        # Check, is event exists
         try:
             query_event = (select([models.event.t])
                 .select_from(models.event.t)
@@ -43,6 +48,7 @@ class SessionsController(HTTPMethodView):
                 response_wrapper.error("Event not found"),
                 status=404)
 
+        # If event exists, query all sessions
         query = (select([models.session.t])
             .select_from(models.session.t)
             .where(models.session.t.c.event_id == event["id"])
@@ -52,30 +58,29 @@ class SessionsController(HTTPMethodView):
             .order_by(models.session.t.c.id.desc())
             .apply_labels())
 
+        # Compile query, execute and parse
         query, params = asyncpgsa.compile_query(query)
-
         try:
             rows = await connection.fetch(query, *params)
         except PostgresError:
             raise exceptions.NotFetchedError
 
         sessions = [
-            models.session.t.parse(row, prefix="sessions_")
+            models.session.json_format(models.session.t.parse(row, prefix="sessions_"))
             for row in rows
         ]
 
-        for session in sessions:
-            session["id"] = str(session["id"])
-            session["event_id"] = str(session["event_id"])
-            for _ in ["start_time", "end_time", "created_at"]:
-                session[_] = session[_].isoformat()
-
+        # Return the list
         return response.json(response_wrapper.ok(sessions))
 
     @helpers.db_connections.provide_connection()
     async def post(self, request, event_id, connection):
+        """Creates a new event session."""
+
+        # Session form
         session = request.json
 
+        # Check, is event exists
         try:
             query_event = (select([models.event.t])
                 .select_from(models.event.t)
@@ -97,6 +102,8 @@ class SessionsController(HTTPMethodView):
                 response_wrapper.error("Event not found"),
                 status=404)
 
+        # If event exists, create a transaction
+        # We need to 1) save session, 2) fetch session from a database
         async with connection.transaction():
             try:
                 query = (models.session.t
@@ -125,13 +132,9 @@ class SessionsController(HTTPMethodView):
                 if not row:
                     raise exceptions.NotFoundError
 
-                session = models.session.t.parse(row, prefix="sessions_")
+                session = models.session.json_format(
+                    models.session.t.parse(row, prefix="sessions_"))
             except (PostgresError, exceptions.DatabaseError):
                 raise exceptions.NotCreatedError
-
-        session["id"] = str(session["id"])
-        session["event_id"] = str(session["event_id"])
-        for _ in ["start_time", "end_time", "created_at"]:
-            session[_] = session[_].isoformat()
 
         return response.json(response_wrapper.ok(session), status=201)

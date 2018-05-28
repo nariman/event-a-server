@@ -27,3 +27,20 @@ t = table = Table(
 
     sa.Column("created_at", DateTime, default=pendulum.now, nullable=False)
 )
+
+
+def json_format(event):
+    """Returns JSON-ready representation of the event object."""
+    return {
+        # convert uuid to str
+        "id": str(event["id"]),
+
+        # name and description as is
+        "name": event["name"],
+        "description": event["description"],
+
+        # convert datetimes to iso8601 format
+        "start_date": event["start_date"].isoformat(),
+        "end_date": event["end_date"].isoformat(),
+        "created_at": event["created_at"].isoformat()
+    }

@@ -21,5 +21,20 @@ t = table = Table(
     sa.Column("event_id", GUID, nullable=False),
 
     sa.Column("name", sa.String(1024), nullable=False),
-    sa.Column("color", sa.String(8), nullable=False),
+    sa.Column("color", sa.String(8)),
 )
+
+
+def json_format(tag):
+    """Returns JSON-ready representation of the tag object."""
+    return {
+        # convert uuid to str
+        "id": str(tag["id"]),
+        # convert uuid to str, w/o event object
+        "event_id": str(tag["id"]),
+
+        # name as is
+        "name": tag["name"],
+        # color as is, can be null
+        "color": tag["color"]
+    }

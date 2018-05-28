@@ -22,3 +22,16 @@ t = table = Table(
 
     sa.Column("name", sa.String(512), nullable=False),
 )
+
+
+def json_format(location):
+    """Returns JSON-ready representation of the location object."""
+    return {
+        # convert uuid to str
+        "id": str(location["id"]),
+        # convert uuid to str, w/o event object
+        "event_id": str(location["id"]),
+
+        # name as is
+        "name": location["name"]
+    }

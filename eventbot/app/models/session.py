@@ -28,3 +28,22 @@ t = table = Table(
 
     sa.Column("created_at", DateTime, default=pendulum.now, nullable=False)
 )
+
+
+def json_format(session):
+    """Returns JSON-ready representation of the session object."""
+    return {
+        # convert uuid to str
+        "id": str(session["id"]),
+        # convert uuid to str, w/o/ event object
+        "event_id": str(session["event_id"]),
+
+        # title and description as is
+        "title": session["title"],
+        "description": session["description"],
+
+        # convert datetimes to iso8601 format
+        "start_time": session["start_time"].isoformat(),
+        "end_time": session["end_time"].isoformat(),
+        "created_at": session["created_at"].isoformat()
+    }

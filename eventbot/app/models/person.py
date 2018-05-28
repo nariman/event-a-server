@@ -22,3 +22,16 @@ t = table = Table(
 
     sa.Column("name", sa.String(1024), nullable=False)
 )
+
+
+def json_format(person):
+    """Returns JSON-ready representation of the person object."""
+    return {
+        # convert uuid to str
+        "id": str(person["id"]),
+        # convert uuid to str, w/o event object
+        "event_id": str(person["id"]),
+
+        # name as is
+        "name": person["name"]
+    }
