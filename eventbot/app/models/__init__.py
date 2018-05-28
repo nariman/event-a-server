@@ -10,6 +10,10 @@ metadata = sa.MetaData()
 
 
 from . import event
-from . import schedule_item
-from . import schedule_item_tag
+from . import location
+from . import person
+from . import session
+from . import session_location
+from . import session_person
+from . import session_tag
 from . import tag

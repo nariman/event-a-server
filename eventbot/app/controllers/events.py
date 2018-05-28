@@ -13,7 +13,6 @@ from sqlalchemy.sql.expression import func
 
 from eventbot.app import models
 from eventbot.app import helpers
-from eventbot.app.state import snowflake_generator
 from eventbot.lib import exceptions
 from eventbot.lib import listing
 from eventbot.lib import response_wrapper
@@ -36,8 +35,6 @@ class EventsController(HTTPMethodView):
             .select_from(models.event.t)
             .apply_labels())
 
-        query = query.order_by(models.event.t.c.id.desc())
-
         if pivot is not None:
             try:
                 query_pivot = query.where(models.event.t.c.id == pivot)
@@ -58,11 +55,24 @@ class EventsController(HTTPMethodView):
                     status=400)
 
             if direction == listing.Direction.BEFORE:
-                query = query.where(models.event.t.c.id > pivot["id"])
+                query = (query
+                    .where(models.event.t.c.start_date > pivot["start_date"])
+                    .where(models.event.t.c.end_date > pivot["end_date"])
+                    .where(models.event.t.c.created_at > pivot["created_at"])
+                    .where(models.event.t.c.id < pivot["id"]))
             elif direction == listing.Direction.AFTER:
-                query = query.where(models.event.t.c.id < pivot["id"])
+                query = (query
+                    .where(models.event.t.c.start_date < pivot["start_date"])
+                    .where(models.event.t.c.end_date < pivot["end_date"])
+                    .where(models.event.t.c.created_at < pivot["created_at"])
+                    .where(models.event.t.c.id > pivot["id"]))
 
-        query = query.limit(limit)
+        query = (query
+            .order_by(models.event.t.c.start_date.asc())
+            .order_by(models.event.t.c.end_date.asc())
+            .order_by(models.event.t.c.created_at.asc())
+            .order_by(models.event.t.c.id.desc())
+            .limit(limit))
         query, params = asyncpgsa.compile_query(query)
 
         try:
@@ -72,7 +82,8 @@ class EventsController(HTTPMethodView):
 
         events = [models.event.t.parse(row, prefix="events_") for row in rows]
         for event in events:
-            for _ in ["start_time", "end_time", "created_at"]:
+            event["id"] = str(event["id"])
+            for _ in ["start_date", "end_date", "created_at"]:
                 event[_] = event[_].isoformat()
 
         return response.json(response_wrapper.ok(events))
@@ -80,20 +91,19 @@ class EventsController(HTTPMethodView):
     @helpers.db_connections.provide_connection()
     async def post(self, request, connection):
         event = request.json
-        id = next(snowflake_generator)
 
         async with connection.transaction():
             try:
-                query = models.event.t.insert().values(
-                    id=id,
-                    name=event["name"],
-                    description=event["description"],
-                    start_time=pendulum.parse(event["start_time"]),
-                    end_time=pendulum.parse(event["end_time"]),
-                    created_at=pendulum.now())
+                query = (models.event.t
+                    .insert()
+                    .values(name=event["name"],
+                            description=event["description"],
+                            start_date=pendulum.parse(event["start_date"]),
+                            end_date=pendulum.parse(event["end_date"]))
+                    .returning(models.event.t.c.id))
                 query, params = asyncpgsa.compile_query(query)
 
-                await connection.execute(query, *params)
+                id = await connection.fetchval(query, *params)
 
                 query = (select([models.event.t])
                     .select_from(models.event.t)
@@ -113,7 +123,8 @@ class EventsController(HTTPMethodView):
             except (PostgresError, exceptions.DatabaseError):
                 raise exceptions.NotCreatedError
 
-        for _ in ["start_time", "end_time", "created_at"]:
+        event["id"] = str(event["id"])
+        for _ in ["start_date", "end_date", "created_at"]:
             event[_] = event[_].isoformat()
 
         return response.json(response_wrapper.ok(event), status=201)

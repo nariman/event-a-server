@@ -42,13 +42,10 @@ class Listing:
 
     @staticmethod
     def validate_id(id: Union[int, str]) -> Optional[int]:
-        """Returns validated ID."""
-        if isinstance(id, str):
-            id = int(id)
+        """Returns validated ID.
 
-        if 0 <= id:
-            return id
-        return None
+        TODO: Validation."""
+        return id
 
     def validate(self,
                  before: Optional[Union[int, str]]=None,

@@ -13,13 +13,12 @@ from sqlalchemy.sql.expression import func
 
 from eventbot.app import models
 from eventbot.app import helpers
-from eventbot.app.state import snowflake_generator
 from eventbot.lib import exceptions
 from eventbot.lib import listing
 from eventbot.lib import response_wrapper
 
 
-class ScheduleItemsController(HTTPMethodView):
+class SessionsController(HTTPMethodView):
 
     @helpers.db_connections.provide_connection()
     async def get(self, request, event_id, connection):
@@ -44,10 +43,13 @@ class ScheduleItemsController(HTTPMethodView):
                 response_wrapper.error("Event not found"),
                 status=404)
 
-        query = (select([models.schedule_item.t])
-            .select_from(models.schedule_item.t)
-            .where(models.schedule_item.t.c.event_id == event["id"])
-            .order_by(models.schedule_item.t.c.start_time.asc())
+        query = (select([models.session.t])
+            .select_from(models.session.t)
+            .where(models.session.t.c.event_id == event["id"])
+            .order_by(models.session.t.c.start_time.asc())
+            .order_by(models.session.t.c.end_time.asc())
+            .order_by(models.session.t.c.created_at.asc())
+            .order_by(models.session.t.c.id.desc())
             .apply_labels())
 
         query, params = asyncpgsa.compile_query(query)
@@ -57,21 +59,22 @@ class ScheduleItemsController(HTTPMethodView):
         except PostgresError:
             raise exceptions.NotFetchedError
 
-        schedule_items = [
-            models.schedule_item.t.parse(row, prefix="schedule_items_")
+        sessions = [
+            models.session.t.parse(row, prefix="sessions_")
             for row in rows
         ]
 
-        for schedule_item in schedule_items:
+        for session in sessions:
+            session["id"] = str(session["id"])
+            session["event_id"] = str(session["event_id"])
             for _ in ["start_time", "end_time", "created_at"]:
-                schedule_item[_] = schedule_item[_].isoformat()
+                session[_] = session[_].isoformat()
 
-        return response.json(response_wrapper.ok(schedule_items))
+        return response.json(response_wrapper.ok(sessions))
 
     @helpers.db_connections.provide_connection()
     async def post(self, request, event_id, connection):
-        schedule_item = request.json
-        id = next(snowflake_generator)
+        session = request.json
 
         try:
             query_event = (select([models.event.t])
@@ -96,22 +99,21 @@ class ScheduleItemsController(HTTPMethodView):
 
         async with connection.transaction():
             try:
-                query = models.schedule_item.t.insert().values(
-                    id=id,
-                    event_id=event["id"],
-                    title=schedule_item["title"],
-                    description=schedule_item["description"],
-                    location=schedule_item["location"],
-                    start_time=pendulum.parse(schedule_item["start_time"]),
-                    end_time=pendulum.parse(schedule_item["end_time"]),
-                    created_at=pendulum.now())
+                query = (models.session.t
+                    .insert()
+                    .values(event_id=event["id"],
+                            title=session["title"],
+                            description=session["description"],
+                            start_time=pendulum.parse(session["start_time"]),
+                            end_time=pendulum.parse(session["end_time"]))
+                    .returning(models.session.t.c.id))
                 query, params = asyncpgsa.compile_query(query)
 
-                await connection.execute(query, *params)
+                id = await connection.fetchval(query, *params)
 
-                query = (select([models.schedule_item.t])
-                    .select_from(models.schedule_item.t)
-                    .where(models.schedule_item.t.c.id == id)
+                query = (select([models.session.t])
+                    .select_from(models.session.t)
+                    .where(models.session.t.c.id == id)
                     .apply_labels())
                 query, params = asyncpgsa.compile_query(query)
 
@@ -123,12 +125,13 @@ class ScheduleItemsController(HTTPMethodView):
                 if not row:
                     raise exceptions.NotFoundError
 
-                schedule_item = models.schedule_item.t.parse(
-                    row, prefix="schedule_items_")
+                session = models.session.t.parse(row, prefix="sessions_")
             except (PostgresError, exceptions.DatabaseError):
                 raise exceptions.NotCreatedError
 
+        session["id"] = str(session["id"])
+        session["event_id"] = str(session["event_id"])
         for _ in ["start_time", "end_time", "created_at"]:
-            schedule_item[_] = schedule_item[_].isoformat()
+            session[_] = session[_].isoformat()
 
-        return response.json(response_wrapper.ok(schedule_item), status=201)
+        return response.json(response_wrapper.ok(session), status=201)

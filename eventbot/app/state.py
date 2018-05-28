@@ -26,8 +26,3 @@ app = Sanic()
 
 pool: asyncpg.pool.Pool
 """PostgreSQL connection pool."""
-
-
-# Snowflake ID generator
-
-snowflake_generator = snowflake.generator(0)
