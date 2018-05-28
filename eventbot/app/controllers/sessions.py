@@ -167,8 +167,7 @@ class SessionsController(HTTPMethodView):
             except (PostgresError, exceptions.DatabaseError):
                 raise exceptions.NotCreatedError
 
-        for session in sessions:
-            for name in ["persons", "locations", "tags"]:
-                session[name] = []
+        for name in ["persons", "locations", "tags"]:
+            session[name] = []
 
         return response.json(response_wrapper.ok(session), status=201)

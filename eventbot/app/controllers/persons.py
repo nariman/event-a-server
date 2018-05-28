@@ -3,7 +3,6 @@ Event Bot Server
 """
 
 import asyncpgsa
-import pendulum
 from asyncpg.connection import Connection
 from asyncpg.exceptions import PostgresError
 from sanic import response
