@@ -18,7 +18,7 @@ t = table = Table(
     metadata,
 
     sa.Column("id", GUID, primary_key=True, default=uuid.uuid4),
-    sa.Column("event_id", sa.BigInteger, nullable=False),
+    sa.Column("event_id", GUID, nullable=False),
 
     sa.Column("name", sa.String(512), nullable=False),
 )
