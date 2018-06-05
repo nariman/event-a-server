@@ -61,15 +61,15 @@ class EventsController(HTTPMethodView):
 
             if direction == listing.Direction.BEFORE:
                 query = (query
-                    .where(models.event.t.c.start_date > pivot["start_date"])
-                    .where(models.event.t.c.end_date > pivot["end_date"])
-                    .where(models.event.t.c.created_at > pivot["created_at"])
+                    .where(models.event.t.c.start_date >= pivot["start_date"])
+                    .where(models.event.t.c.end_date >= pivot["end_date"])
+                    .where(models.event.t.c.created_at >= pivot["created_at"])
                     .where(models.event.t.c.id < pivot["id"]))
             elif direction == listing.Direction.AFTER:
                 query = (query
-                    .where(models.event.t.c.start_date < pivot["start_date"])
-                    .where(models.event.t.c.end_date < pivot["end_date"])
-                    .where(models.event.t.c.created_at < pivot["created_at"])
+                    .where(models.event.t.c.start_date <= pivot["start_date"])
+                    .where(models.event.t.c.end_date <= pivot["end_date"])
+                    .where(models.event.t.c.created_at <= pivot["created_at"])
                     .where(models.event.t.c.id > pivot["id"]))
 
         # Apply sorting and limit

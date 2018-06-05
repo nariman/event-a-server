@@ -30,7 +30,7 @@ def json_format(location):
         # convert uuid to str
         "id": str(location["id"]),
         # convert uuid to str, w/o event object
-        "event_id": str(location["id"]),
+        "event_id": str(location["event_id"]),
 
         # name as is
         "name": location["name"]

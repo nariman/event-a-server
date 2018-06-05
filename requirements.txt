@@ -4,4 +4,5 @@ passlib[argon2,bcrypt]
 pendulum
 python-jose
 sanic
+sanic-prometheus
 sqlalchemy

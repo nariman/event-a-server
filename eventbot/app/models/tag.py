@@ -31,7 +31,7 @@ def json_format(tag):
         # convert uuid to str
         "id": str(tag["id"]),
         # convert uuid to str, w/o event object
-        "event_id": str(tag["id"]),
+        "event_id": str(tag["event_id"]),
 
         # name as is
         "name": tag["name"],

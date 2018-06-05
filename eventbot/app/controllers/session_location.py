@@ -57,7 +57,7 @@ class SessionLocationController(HTTPMethodView):
             raise exceptions.NotCreatedError
 
         # Return the HTTP 204
-        return response.text("", status=204)
+        return response.text("", content_type="application/json", status=204)
 
     @helpers.db_connections.provide_connection()
     async def delete(self, request, event_id, session_id, location_id,
@@ -77,4 +77,4 @@ class SessionLocationController(HTTPMethodView):
             raise exceptions.NotUpdatedError
 
         # Return the HTTP 204
-        return response.text("", status=204)
+        return response.text("", content_type="application/json", status=204)
