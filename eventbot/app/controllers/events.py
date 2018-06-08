@@ -74,7 +74,7 @@ class EventsController(HTTPMethodView):
 
         # Apply sorting and limit
         query = (query
-            .order_by(models.event.t.c.start_date.asc())
+            .order_by(models.event.t.c.start_date.desc())
             .order_by(models.event.t.c.end_date.asc())
             .order_by(models.event.t.c.created_at.asc())
             .order_by(models.event.t.c.id.desc())

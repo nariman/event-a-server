@@ -2,6 +2,7 @@
 Event Bot Server
 """
 
+from .event import EventController
 from .events import EventsController
 from .locations import LocationsController
 from .persons import PersonsController
