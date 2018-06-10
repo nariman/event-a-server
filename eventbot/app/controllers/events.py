@@ -61,24 +61,56 @@ class EventsController(HTTPMethodView):
 
             if direction == listing.Direction.BEFORE:
                 query = (query
-                    .where(models.event.t.c.start_date >= pivot["start_date"])
-                    .where(models.event.t.c.end_date >= pivot["end_date"])
-                    .where(models.event.t.c.created_at >= pivot["created_at"])
-                    .where(models.event.t.c.id < pivot["id"]))
+                    .where(
+                        (models.event.t.c.start_date > pivot["start_date"])
+                        | (
+                            (models.event.t.c.start_date == pivot["start_date"])
+                            & (models.event.t.c.end_date < pivot["end_date"])
+                        ) | (
+                            (models.event.t.c.start_date == pivot["start_date"])
+                            & (models.event.t.c.end_date == pivot["end_date"])
+                            & (models.event.t.c.created_at < pivot["created_at"])
+                        ) | (
+                            (models.event.t.c.start_date == pivot["start_date"])
+                            & (models.event.t.c.end_date == pivot["end_date"])
+                            & (models.event.t.c.created_at == pivot["created_at"])
+                            & (models.event.t.c.id > pivot["id"])
+                        )
+                    ))
             elif direction == listing.Direction.AFTER:
                 query = (query
-                    .where(models.event.t.c.start_date <= pivot["start_date"])
-                    .where(models.event.t.c.end_date <= pivot["end_date"])
-                    .where(models.event.t.c.created_at <= pivot["created_at"])
-                    .where(models.event.t.c.id > pivot["id"]))
+                    .where(
+                        (models.event.t.c.start_date < pivot["start_date"])
+                        | (
+                            (models.event.t.c.start_date == pivot["start_date"])
+                            & (models.event.t.c.end_date > pivot["end_date"])
+                        ) | (
+                            (models.event.t.c.start_date == pivot["start_date"])
+                            & (models.event.t.c.end_date == pivot["end_date"])
+                            & (models.event.t.c.created_at > pivot["created_at"])
+                        ) | (
+                            (models.event.t.c.start_date == pivot["start_date"])
+                            & (models.event.t.c.end_date == pivot["end_date"])
+                            & (models.event.t.c.created_at == pivot["created_at"])
+                            & (models.event.t.c.id < pivot["id"])
+                        )
+                    ))
 
         # Apply sorting and limit
-        query = (query
-            .order_by(models.event.t.c.start_date.desc())
-            .order_by(models.event.t.c.end_date.asc())
-            .order_by(models.event.t.c.created_at.asc())
-            .order_by(models.event.t.c.id.desc())
-            .limit(limit))
+        if direction == listing.Direction.BEFORE:
+            query = (query
+                .order_by(models.event.t.c.start_date.asc())
+                .order_by(models.event.t.c.end_date.desc())
+                .order_by(models.event.t.c.created_at.desc())
+                .order_by(models.event.t.c.id.asc())
+                .limit(limit))
+        elif direction == listing.Direction.AFTER:
+            query = (query
+                .order_by(models.event.t.c.start_date.desc())
+                .order_by(models.event.t.c.end_date.asc())
+                .order_by(models.event.t.c.created_at.asc())
+                .order_by(models.event.t.c.id.desc())
+                .limit(limit))
 
         # Compile query, execute and parse
         query, params = asyncpgsa.compile_query(query)
@@ -91,6 +123,9 @@ class EventsController(HTTPMethodView):
             models.event.json_format(models.event.t.parse(row, prefix="events_"))
             for row in rows
         ]
+
+        if direction == listing.Direction.BEFORE:
+            events.reverse()
 
         # Return the list
         return response.json(response_wrapper.ok(events))

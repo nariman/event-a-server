@@ -6,6 +6,9 @@ from eventbot.app import controllers
 
 
 CONTROLLERS_MAP = [
+    ("/users", controllers.UsersController),
+    ("/platforms", controllers.PlatformsController),
+
     ("/events", controllers.EventsController),
 
     ("/events/<event_id>", controllers.EventController),

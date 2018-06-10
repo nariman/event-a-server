@@ -17,5 +17,5 @@ t = table = Table(
     metadata,
 
     sa.Column("session_id", GUID, nullable=False),
-    sa.Column("person_id", GUID, nullable=False),
+    sa.Column("person_id", GUID, nullable=False)
 )
