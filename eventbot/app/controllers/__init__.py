@@ -2,14 +2,25 @@
 Event Bot Server
 """
 
-from .event import EventController
-from .events import EventsController
+from .events import (
+    EventController,
+    EventsController
+)
 from .locations import LocationsController
 from .persons import PersonsController
 from .platforms import PlatformsController
-from .sessions import SessionsController
-from .session_location import SessionLocationController
-from .session_person import SessionPersonController
-from .session_tag import SessionTagController
+from .sessions import (
+    SessionsController,
+    SessionLocationController,
+    SessionPersonController,
+    SessionTagController
+)
 from .tags import TagsController
-from .users import UsersController
+from .users import (
+    UserController,
+    UsersController,
+    UserByPlatformController,
+    UserPlatformsController,
+    UserSavedEventController,
+    UserSavedEventsController
+)
