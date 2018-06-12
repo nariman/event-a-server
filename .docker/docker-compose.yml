@@ -1,0 +1,29 @@
+server:
+  container_name: eventbot-server
+  restart: always
+  build: ./sources/server
+  links:
+    - postgres:postgres
+  env_file:
+    - ./env/server.env
+  ports:
+    - "28080:8080"
+  expose:
+    - "8080"
+    - "8443"
+  volumes:
+    - ./storage/server:/docker/storage
+    - ./storage/prometheus:/docker/storage-prometheus
+  command: python -m eventbot
+
+postgres:
+  restart: always
+  image: postgres:latest
+  env_file:
+    - ./env/postgres.env
+  ports:
+    - "25432:5432"
+  expose:
+    - "5432"
+  volumes:
+    - ./storage/postgres:/docker/storage
